@@ -70,33 +70,16 @@ async function loadManifest(): Promise<string[]> {
   }
 }
 
-function mergeGroups(groups: Group[]): Group[] {
-  const groupMap = new Map<string, Group>();
-
-  groups.forEach(group => {
-    const existing = groupMap.get(group.name);
-    if (existing) {
-      // Merge subgroups
-      existing.subgroups = mergeSubgroups([...existing.subgroups, ...group.subgroups]);
-    } else {
-      groupMap.set(group.name, {
-        name: group.name,
-        subgroups: [...group.subgroups]
-      });
-    }
-  });
-
-  return Array.from(groupMap.values());
-}
-
 function mergeSubgroups(subgroups: Subgroup[]): Subgroup[] {
   const subgroupMap = new Map<string, Subgroup>();
 
   subgroups.forEach(subgroup => {
     const existing = subgroupMap.get(subgroup.name);
     if (existing) {
-      // Merge videos
-      existing.videos = [...(existing.videos || []), ...(subgroup.videos || [])];
+      // Merge videos (avoid duplicates by videoId)
+      const existingVideoIds = new Set(existing.videos?.map(v => v.id.videoId) || []);
+      const newVideos = subgroup.videos?.filter(v => !existingVideoIds.has(v.id.videoId)) || [];
+      existing.videos = [...(existing.videos || []), ...newVideos];
       
       // Merge nested subgroups recursively
       if (subgroup.subgroups && subgroup.subgroups.length > 0) {
@@ -124,6 +107,25 @@ function mergeSubgroups(subgroups: Subgroup[]): Subgroup[] {
   return Array.from(subgroupMap.values());
 }
 
+function mergeGroups(groups: Group[]): Group[] {
+  const groupMap = new Map<string, Group>();
+
+  groups.forEach(group => {
+    const existing = groupMap.get(group.name);
+    if (existing) {
+      // Merge subgroups
+      existing.subgroups = mergeSubgroups([...existing.subgroups, ...group.subgroups]);
+    } else {
+      groupMap.set(group.name, {
+        name: group.name,
+        subgroups: [...group.subgroups]
+      });
+    }
+  });
+
+  return Array.from(groupMap.values());
+}
+
 export async function loadAllContent(): Promise<Group[]> {
   try {
     console.log("🚀 Starting content loading...");
@@ -138,14 +140,43 @@ export async function loadAllContent(): Promise<Group[]> {
 
     console.log("📋 Files to load:", filePaths);
 
-    // Load all JSON files
+    // Group files by their folder path (excluding filename)
+    const folderGroups = new Map<string, string[]>();
+    
+    filePaths.forEach(filePath => {
+      // Extract folder path (everything except the filename)
+      const pathParts = filePath.split('/');
+      const filename = pathParts.pop(); // Remove filename
+      const folderPath = pathParts.join('/');
+      
+      if (!folderGroups.has(folderPath)) {
+        folderGroups.set(folderPath, []);
+      }
+      folderGroups.get(folderPath)!.push(filePath);
+    });
+
+    console.log("📁 Folder groups:", Array.from(folderGroups.entries()));
+
+    // Load and merge content from all files
     const allGroups: Group[] = [];
     
-    for (const filePath of filePaths) {
-      const content = await loadJsonFile(filePath);
-      if (content.length > 0) {
-        console.log(`📥 Processing content from ${filePath}`);
-        allGroups.push(...content);
+    for (const [folderPath, files] of folderGroups.entries()) {
+      console.log(`📂 Processing folder: ${folderPath} with ${files.length} files`);
+      
+      // Load all files in this folder
+      const folderContent: Group[] = [];
+      for (const filePath of files) {
+        const content = await loadJsonFile(filePath);
+        if (content.length > 0) {
+          console.log(`📥 Loaded ${content.length} groups from ${filePath}`);
+          folderContent.push(...content);
+        }
+      }
+      
+      // Merge content from all files in this folder
+      if (folderContent.length > 0) {
+        const mergedFolderGroups = mergeGroups(folderContent);
+        allGroups.push(...mergedFolderGroups);
       }
     }
 
@@ -154,11 +185,11 @@ export async function loadAllContent(): Promise<Group[]> {
       return [];
     }
 
-    // Merge groups with the same name
-    const mergedGroups = mergeGroups(allGroups);
+    // Final merge of all groups (in case same group names exist across different folders)
+    const finalGroups = mergeGroups(allGroups);
 
     console.log("✅ Content loading complete. Final structure:");
-    mergedGroups.forEach((group) => {
+    finalGroups.forEach((group) => {
       console.log(`Group: ${group.name}`);
       const logSubgroup = (sg: Subgroup, indent = "  ") => {
         const videosCount = sg.videos?.length || 0;
@@ -171,7 +202,7 @@ export async function loadAllContent(): Promise<Group[]> {
       group.subgroups.forEach((sg) => logSubgroup(sg));
     });
 
-    return mergedGroups;
+    return finalGroups;
   } catch (error) {
     console.error("❌ Error in content loading:", error);
     return [];
