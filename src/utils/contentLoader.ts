@@ -168,6 +168,7 @@ export async function loadAllContent(): Promise<Group[]> {
       
       if (!folderGroups.has(folderPath)) {
         folderGroups.set(folderPath, []);
+      }
       for (const filePath of files) {
         const content = await loadJsonFile(filePath);
         if (content.length > 0) {
