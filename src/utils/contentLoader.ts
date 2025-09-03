@@ -157,36 +157,6 @@ export async function loadAllContent(): Promise<Group[]> {
 
     console.log("📁 Folder groups:", Array.from(folderGroups.entries()));
 
-    // Group files by their folder path
-    const folderGroups = new Map<string, string[]>();
-    
-    filePaths.forEach(filePath => {
-      // Extract folder path (everything except the filename)
-      const pathParts = filePath.replace(/^\/contents\//, '').split('/');
-      pathParts.pop(); // Remove filename
-      const folderPath = pathParts.join('/');
-      
-      if (!folderGroups.has(folderPath)) {
-        folderGroups.set(folderPath, []);
-      }
-      for (const filePath of files) {
-        const content = await loadJsonFile(filePath);
-        if (content.length > 0) {
-          console.log(`📥 Loaded ${content.length} groups from ${filePath}`);
-          folderContent.push(...content);
-        }
-      }
-      
-      // Merge content from all files in this folder
-      if (folderContent.length > 0) {
-        const mergedFolderGroups = mergeGroups(folderContent);
-        allGroups.push(...mergedFolderGroups);
-      }
-      folderGroups.get(folderPath)!.push(filePath);
-    });
-
-    console.log("📁 Folder groups:", Array.from(folderGroups.entries()));
-
     // Load and merge content from all files, using folder names in navigation
     const allGroups: Group[] = [];
     
