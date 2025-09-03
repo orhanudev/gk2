@@ -157,7 +157,36 @@ export async function loadAllContent(): Promise<Group[]> {
 
     console.log("📁 Folder groups:", Array.from(folderGroups.entries()));
 
-    // Load and merge content from all files
+    // Group files by their folder path
+    const folderGroups = new Map<string, string[]>();
+    
+    filePaths.forEach(filePath => {
+      // Extract folder path (everything except the filename)
+      const pathParts = filePath.replace(/^\/contents\//, '').split('/');
+      pathParts.pop(); // Remove filename
+      const folderPath = pathParts.join('/');
+      
+      if (!folderGroups.has(folderPath)) {
+        folderGroups.set(folderPath, []);
+      for (const filePath of files) {
+        const content = await loadJsonFile(filePath);
+        if (content.length > 0) {
+          console.log(`📥 Loaded ${content.length} groups from ${filePath}`);
+          folderContent.push(...content);
+        }
+      }
+      
+      // Merge content from all files in this folder
+      if (folderContent.length > 0) {
+        const mergedFolderGroups = mergeGroups(folderContent);
+        allGroups.push(...mergedFolderGroups);
+      }
+      folderGroups.get(folderPath)!.push(filePath);
+    });
+
+    console.log("📁 Folder groups:", Array.from(folderGroups.entries()));
+
+    // Load and merge content from all files, using folder names in navigation
     const allGroups: Group[] = [];
     
     for (const [folderPath, files] of folderGroups.entries()) {
@@ -173,8 +202,27 @@ export async function loadAllContent(): Promise<Group[]> {
         }
       }
       
-      // Merge content from all files in this folder
-      if (folderContent.length > 0) {
+      // If we have content and a folder path, use folder name as group name
+      if (folderContent.length > 0 && folderPath) {
+        const folderName = folderPath.split('/').pop() || folderPath;
+        
+        // Merge all content from this folder under the folder name
+        const mergedFolderGroups = mergeGroups(folderContent);
+        
+        // Create a new group with the folder name
+        const folderGroup: Group = {
+          name: folderName,
+          subgroups: []
+        };
+        
+        // Merge all subgroups from the folder content
+        mergedFolderGroups.forEach(group => {
+          folderGroup.subgroups.push(...group.subgroups);
+        });
+        
+        allGroups.push(folderGroup);
+      } else {
+        // No folder path, use original group names
         const mergedFolderGroups = mergeGroups(folderContent);
         allGroups.push(...mergedFolderGroups);
       }
