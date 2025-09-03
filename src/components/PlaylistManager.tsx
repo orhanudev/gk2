@@ -132,7 +132,6 @@ export function PlaylistManager({
         <div className="bg-gray-800 p-4 rounded-lg border border-gray-700">
           <form onSubmit={handleCreatePlaylist} className="flex gap-2">
             <input
-              type="text"
               value={newPlaylistName}
               onChange={(e) => setNewPlaylistName(e.target.value)}
               placeholder="Liste adı..."
