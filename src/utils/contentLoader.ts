@@ -199,6 +199,20 @@ export async function loadAllContent(): Promise<Group[]> {
     for (const [folderPath, files] of folderGroups.entries()) {
       console.log(`📂 Processing folder: ${folderPath} with ${files.length} files`);
       
+      if (files.length === 0) {
+        // Empty folder - create empty group
+        if (folderPath && folderPath !== '/contents' && folderPath.startsWith('/contents/')) {
+          const folderName = folderPath.split('/').pop() || folderPath;
+          const emptyGroup: Group = {
+            name: folderName,
+            subgroups: []
+          };
+          allGroups.push(emptyGroup);
+          console.log(`📁 Created empty folder group: ${folderName}`);
+        }
+        continue;
+      }
+      
       // Load all files in this folder
       const folderContent: Group[] = [];
       for (const filePath of files) {
