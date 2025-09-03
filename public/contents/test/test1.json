@@ -1,0 +1,19 @@
+[
+  {
+    "name": "Melekut Part 1",
+    "subgroups": [
+      {
+        "name": "Melekut/Melekut Alemi Bölüm 1", 
+        "viewName": "Melekut Alemi Bölüm 1", 
+        "channelId": "CinarMedya",
+        "videos": [
+          { "id": { "videoId": "-xjZNxsg9HU" }, "snippet": { "title": "Meleklere İmanın Faydaları | Melekut Alemi #1 | M. Fethullah Gülen", "channelId": "CinarMedya", "channelTitle": "Çınar Medya", "duration": "PT4169S", "uploadDate": "2021-05-28T03:00:17-07:00", "thumbnails": { "high": { "url": "https://i.ytimg.com/vi/-xjZNxsg9HU/maxresdefault.jpg?sqp=-oaymwEmCIAKENAF8quKqQMa8AEB-AHUBoAC4AOKAgwIABABGH8gGSg7MA8=&rs=AOn4CLCOXURtgwgkoRy25W8Vrnr2wx-H_g" } } } },
+          { "id": { "videoId": "_ry8u9ywMyU" }, "snippet": { "title": "Meleklerin Varlığına Deliller | Melekut Alemi #2 | M. Fethullah Gülen", "channelId": "CinarMedya", "channelTitle": "Çınar Medya", "duration": "PT4138S", "uploadDate": "2021-06-04T03:35:11-07:00", "thumbnails": { "high": { "url": "https://i.ytimg.com/vi/_ry8u9ywMyU/maxresdefault.jpg" } } } },
+          { "id": { "videoId": "aCz6u7f7f4k" }, "snippet": { "title": "Madde Ötesi Alemlerin Varlığına Deliller | Melekut Alemi #3 | M. Fethullah Gülen", "channelId": "CinarMedya", "channelTitle": "Çınar Medya", "duration": "PT3897S", "uploadDate": "2021-06-11T03:00:41-07:00", "thumbnails": { "high": { "url": "https://i.ytimg.com/vi/aCz6u7f7f4k/maxresdefault.jpg" } } } },
+          { "id": { "videoId": "auPHltg9OAc" }, "snippet": { "title": "Önsezi ve Gaybi Haberler | Melekut Alemi #4 | M. Fethullah Gülen", "channelId": "CinarMedya", "channelTitle": "Çınar Medya", "duration": "PT3733S", "uploadDate": "2021-06-18T03:00:02-07:00", "thumbnails": { "high": { "url": "https://i.ytimg.com/vi/auPHltg9OAc/maxresdefault.jpg" } } } },
+          { "id": { "videoId": "f6NdCJQVRAE" }, "snippet": { "title": "İyi ve Kötü Ruhların İnsanlarla Münasebeti | Melekut Alemi #05 | M. Fethullah Gülen", "channelId": "CinarMedya", "channelTitle": "Çınar Medya", "duration": "PT4019S", "uploadDate": "2021-06-25T02:00:31-07:00", "thumbnails": { "high": { "url": "https://i.ytimg.com/vi/f6NdCJQVRAE/hqdefault.jpg?sqp=-oaymwEmCOADEOgC8quKqQMa8AEB-AH-DoACuAiKAgwIABABGH8gLShSMA8=&rs=AOn4CLAMY1DFmJskXAH-0HxZTslqeljHWg" } } } }
+        ]
+      }
+    ]
+  }
+]
