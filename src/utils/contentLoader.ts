@@ -143,10 +143,38 @@ function buildGroupStructureFromManifest(entries: ManifestEntry[]): { groups: Gr
       return;
     }
 
-    const groupName = pathParts[0];
+    // For JSON files, we need to determine the actual navigation structure
+    // The file path structure should map to navigation, not include the filename
+    let navigationParts: string[];
+    
+    if (entry.type === "file" && entry.path.endsWith('.json')) {
+      // For JSON files, exclude the filename from navigation structure
+      navigationParts = pathParts.slice(0, -1); // Remove filename
+      
+      // The navigation path is everything except the filename
+      const navigationPath = navigationParts.join('/');
+      
+      // Map this file to its navigation path
+      if (!fileMap.has(navigationPath)) {
+        fileMap.set(navigationPath, []);
+      }
+      fileMap.get(navigationPath)!.push(entry.path);
+      
+      console.log(`Mapped file ${entry.path} to navigation path: ${navigationPath}`);
+    } else {
+      // For folders, use the full path
+      navigationParts = pathParts;
+    }
+    
+    if (navigationParts.length === 0) {
+      console.warn(`No navigation structure for entry: ${entry.path}`);
+      return;
+    }
+    
+    const groupName = navigationParts[0];
 
     console.log(
-      `Processing: type="${entry.type}", path="${entry.path}", group="${groupName}"`
+      `Processing: type="${entry.type}", path="${entry.path}", group="${groupName}", navigationParts="${navigationParts.join('/')}"`
     );
 
     // Get or create group
@@ -161,75 +189,47 @@ function buildGroupStructureFromManifest(entries: ManifestEntry[]): { groups: Gr
       console.log(`Created group: ${groupName}`);
     }
 
-    // Navigate/create the path hierarchy using full path as unique identifier
+    // Navigate/create the path hierarchy for navigation structure only
     let currentSubgroups = group.subgroups;
-    let currentPath = groupName;
+    let currentNavPath = groupName;
 
-    // Process ALL path parts as folders, including file containers
-    const endIndex =
-      entry.type === "file" ? pathParts.length : pathParts.length;
+    // Process navigation parts (excluding filename for JSON files)
+    for (let i = 1; i < navigationParts.length; i++) {
+      const folderName = navigationParts[i];
+      currentNavPath += `/${folderName}`;
 
-    for (let i = 1; i < endIndex; i++) {
-      const folderName = pathParts[i];
-      let displayName = folderName;
-
-      // If this is a JSON file, remove .json extension for display
-      if (entry.type === "file" && i === pathParts.length - 1) {
-        displayName = folderName.replace(".json", "");
-      }
-
-      currentPath += `/${folderName}`;
-
-      // Use full path as unique identifier
+      // Use navigation path as unique identifier
       let existingSubgroup = currentSubgroups.find(
-        (sg) => sg._fullPath === currentPath
+        (sg) => sg._navPath === currentNavPath
       );
+      
       if (!existingSubgroup) {
         existingSubgroup = {
-          name: displayName,
-          viewName:
-            entry.name && i === pathParts.length - 1 ? entry.name : displayName,
+          name: folderName,
+          viewName: entry.name || folderName,
           channelId: "",
           videos: [],
           subgroups: [],
-          _fullPath: currentPath, // Track full path for uniqueness
+          _navPath: currentNavPath, // Track navigation path for uniqueness
         };
 
-
         currentSubgroups.push(existingSubgroup);
-        console.log(
-          `Created folder level: ${currentPath} (${
-            entry.type === "file" && i === pathParts.length - 1
-              ? "file container"
-              : "folder"
-          })`
-        );
+        console.log(`Created navigation level: ${currentNavPath}`);
       } else {
-        if (entry.name && i === pathParts.length - 1) {
+        // Update viewName if provided in manifest
+        if (entry.name) {
           existingSubgroup.viewName = entry.name;
         }
       }
 
-      // Track file paths for this navigation path
-      if (entry.type === "file" && i === pathParts.length - 1) {
-        const navPath = currentPath.replace(/\.json$/, ""); // Remove .json for navigation path
-        if (!fileMap.has(navPath)) {
-          fileMap.set(navPath, []);
-        }
-        const files = fileMap.get(navPath)!;
-        if (!files.includes(entry.path)) {
-          files.push(entry.path);
-        }
-      }
-
-      currentSubgroups = existingSubgroup.subgroups!;
+      currentSubgroups = existingSubgroup.subgroups || [];
     }
   });
 
-  // Clean up the temporary _fullPath and _isFileContainer properties
+  // Clean up the temporary _navPath properties
   const cleanupTempProperties = (subgroups: Subgroup[]) => {
     subgroups.forEach((sg) => {
-      delete (sg as any)._fullPath;
+      delete (sg as any)._navPath;
       if (sg.subgroups) {
         cleanupTempProperties(sg.subgroups);
       }
@@ -239,21 +239,21 @@ function buildGroupStructureFromManifest(entries: ManifestEntry[]): { groups: Gr
   groups.forEach((group) => cleanupTempProperties(group.subgroups));
 
   console.log(`✅ Built ${groups.length} groups with hierarchy`);
+  console.log('📁 File mapping:', Array.from(fileMap.entries()));
   return { groups, fileMap };
 }
 
 async function loadContentForSubgroup(subgroup: Subgroup, fileMap: Map<string, string[]>, currentPath: string): Promise<void> {
   const filePaths = fileMap.get(currentPath);
   if (!filePaths || filePaths.length === 0) {
-    // No file path means this is an empty folder or structure-only subgroup
     console.log(
-      `📂 Subgroup "${subgroup.name}" has no associated file (empty folder or structure-only)`
+      `📂 Subgroup "${subgroup.name}" at path "${currentPath}" has no associated files`
     );
     return;
   }
 
   console.log(
-    `📥 Loading content for subgroup "${subgroup.name}" from ${filePaths.length} file(s): ${filePaths.join(', ')}`
+    `📥 Loading and merging content for subgroup "${subgroup.name}" from ${filePaths.length} file(s): ${filePaths.join(', ')}`
   );
 
   // Load content from all files and merge
@@ -264,97 +264,25 @@ async function loadContentForSubgroup(subgroup: Subgroup, fileMap: Map<string, s
   }
 
   if (allContent.length === 0) {
-    console.log(`📭 No content loaded from any files`);
+    console.log(`📭 No content loaded from files for path: ${currentPath}`);
     return;
   }
 
-  // Clear existing content since we're rebuilding from JSON structure
-  subgroup.subgroups = [];
-  subgroup.videos = [];
+  // Initialize arrays if they don't exist
+  if (!subgroup.subgroups) subgroup.subgroups = [];
+  if (!subgroup.videos) subgroup.videos = [];
 
-  // Process all loaded content items
+  // Process all loaded content items and merge them
   allContent.forEach((item) => {
-    // Check if this is a top-level group with a name and subgroups
-    if (item.name && item.subgroups && Array.isArray(item.subgroups)) {
-      // For multiple files, we need to merge subgroups with the same name
-      if (item.channelId) subgroup.channelId = item.channelId;
-
-      // Process each subgroup from the JSON structure
-      item.subgroups.forEach((sub: any) => {
-        // Check if a subgroup with this name already exists
-        let existingSubgroup = subgroup.subgroups!.find(sg => sg.name === sub.name);
-        
-        if (existingSubgroup) {
-          // Merge videos into existing subgroup
-          if (sub.videos && Array.isArray(sub.videos)) {
-            existingSubgroup.videos = [...(existingSubgroup.videos || []), ...sub.videos];
-          }
-          
-          // Merge nested subgroups
-          if (sub.subgroups && Array.isArray(sub.subgroups)) {
-            sub.subgroups.forEach((nestedSub: any) => {
-              const existingNested = existingSubgroup!.subgroups!.find(sg => sg.name === nestedSub.name);
-              if (existingNested) {
-                // Merge videos in nested subgroup
-                if (nestedSub.videos) {
-                  existingNested.videos = [...(existingNested.videos || []), ...nestedSub.videos];
-                }
-              } else {
-                // Add new nested subgroup
-                existingSubgroup!.subgroups!.push({
-                  name: nestedSub.name,
-                  viewName: nestedSub.viewName || nestedSub.name,
-                  channelId: nestedSub.channelId || "",
-                  videos: nestedSub.videos || [],
-                  subgroups: nestedSub.subgroups || []
-                });
-              }
-            });
-          }
-        } else {
-          // Create new subgroup
-          const newSubgroup: Subgroup = {
-            name: sub.name,
-            viewName: sub.viewName || sub.name,
-            channelId: sub.channelId || "",
-            videos: sub.videos || [],
-            subgroups: sub.subgroups || [],
-          };
-
-          // Recursively process nested subgroups
-          if (sub.subgroups && Array.isArray(sub.subgroups)) {
-            processNestedSubgroups(newSubgroup, sub.subgroups);
-          }
-
-          subgroup.subgroups!.push(newSubgroup);
-        }
-      });
-    } else if (item.videos && Array.isArray(item.videos)) {
-      // Direct videos in this item
-      subgroup.videos.push(...item.videos);
-    } else if (item.subgroups && Array.isArray(item.subgroups)) {
-      // Direct subgroups in this item
-      item.subgroups.forEach((sub: any) => {
-        subgroup.subgroups!.push({
-          name: sub.name,
-          viewName: sub.viewName || sub.name,
-          channelId: sub.channelId || "",
-          videos: sub.videos || [],
-          subgroups: sub.subgroups || [],
-        });
-      });
-    } else if (Array.isArray(item)) {
-      // Item itself is an array of videos
-      subgroup.videos.push(...item);
-    } else if (item.id || item.title || item.url) {
-      // Item looks like a single video object
-      subgroup.videos.push(item);
+    // Process each top-level item from the JSON files
+    if (Array.isArray(item)) {
+      // If the item is an array, process each element
+      item.forEach(subItem => processContentItem(subItem, subgroup));
+    } else {
+      // Process single item
+      processContentItem(item, subgroup);
     }
 
-    // Update subgroup metadata if present at root level
-    if (item.viewName && !item.subgroups) subgroup.viewName = item.viewName;
-    if (item.channelId && !item.subgroups) subgroup.channelId = item.channelId;
-  });
 
 
   console.log(
@@ -362,6 +290,75 @@ async function loadContentForSubgroup(subgroup: Subgroup, fileMap: Map<string, s
       subgroup.videos?.length || 0
     } videos, ${subgroup.subgroups?.length || 0} subgroups`
   );
+}
+
+function processContentItem(item: any, targetSubgroup: Subgroup): void {
+  if (item.name && item.subgroups && Array.isArray(item.subgroups)) {
+    // This is a group structure - merge its subgroups
+    item.subgroups.forEach((sub: any) => {
+      mergeSubgroupContent(sub, targetSubgroup);
+    });
+    
+    // Update metadata if present
+    if (item.channelId) targetSubgroup.channelId = item.channelId;
+  } else if (item.videos && Array.isArray(item.videos)) {
+    // Direct videos array
+    targetSubgroup.videos = [...(targetSubgroup.videos || []), ...item.videos];
+  } else if (item.subgroups && Array.isArray(item.subgroups)) {
+    // Direct subgroups array
+    item.subgroups.forEach((sub: any) => {
+      mergeSubgroupContent(sub, targetSubgroup);
+    });
+  } else if (Array.isArray(item)) {
+    // Item itself is an array of videos
+    targetSubgroup.videos = [...(targetSubgroup.videos || []), ...item];
+  } else if (item.id || item.title || item.url) {
+    // Single video object
+    targetSubgroup.videos = [...(targetSubgroup.videos || []), item];
+  }
+  
+  // Update metadata if present at root level
+  if (item.viewName && !item.subgroups) targetSubgroup.viewName = item.viewName;
+  if (item.channelId && !item.subgroups) targetSubgroup.channelId = item.channelId;
+}
+
+function mergeSubgroupContent(sourceSubgroup: any, targetParent: Subgroup): void {
+  // Check if a subgroup with this name already exists in target
+  let existingSubgroup = targetParent.subgroups!.find(sg => sg.name === sourceSubgroup.name);
+  
+  if (existingSubgroup) {
+    // Merge videos into existing subgroup
+    if (sourceSubgroup.videos && Array.isArray(sourceSubgroup.videos)) {
+      existingSubgroup.videos = [...(existingSubgroup.videos || []), ...sourceSubgroup.videos];
+    }
+    
+    // Merge nested subgroups recursively
+    if (sourceSubgroup.subgroups && Array.isArray(sourceSubgroup.subgroups)) {
+      sourceSubgroup.subgroups.forEach((nestedSub: any) => {
+        mergeSubgroupContent(nestedSub, existingSubgroup!);
+      });
+    }
+    
+    // Update metadata
+    if (sourceSubgroup.viewName) existingSubgroup.viewName = sourceSubgroup.viewName;
+    if (sourceSubgroup.channelId) existingSubgroup.channelId = sourceSubgroup.channelId;
+  } else {
+    // Create new subgroup
+    const newSubgroup: Subgroup = {
+      name: sourceSubgroup.name,
+      viewName: sourceSubgroup.viewName || sourceSubgroup.name,
+      channelId: sourceSubgroup.channelId || "",
+      videos: sourceSubgroup.videos || [],
+      subgroups: sourceSubgroup.subgroups || [],
+    };
+
+    // Recursively process nested subgroups
+    if (sourceSubgroup.subgroups && Array.isArray(sourceSubgroup.subgroups)) {
+      processNestedSubgroups(newSubgroup, sourceSubgroup.subgroups);
+    }
+
+    targetParent.subgroups!.push(newSubgroup);
+  }
 }
 
 function processNestedSubgroups(
