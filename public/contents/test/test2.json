@@ -1,10 +1,10 @@
 [
   {
-    "name": "Melekut Part 2",
+    "name": "Melekut",
     "subgroups": [
       {
-        "name": "Melekut/Melekut Alemi Bölüm 2", 
-        "viewName": "Melekut Alemi Bölüm 2", 
+        "name": "Melekut Alemi",
+        "viewName": "Melekut Alemi",
         "channelId": "CinarMedya",
         "videos": [
           { "id": { "videoId": "EiYWNEeMf54" }, "snippet": { "title": "Mana Alemine Açılmanın Yolları | Melekut Alemi #06 | M. Fethullah Gülen", "channelId": "CinarMedya", "channelTitle": "Çınar Medya", "duration": "PT3536S", "uploadDate": "2021-07-02T02:00:12-07:00", "thumbnails": { "high": { "url": "https://i.ytimg.com/vi/EiYWNEeMf54/hqdefault.jpg?sqp=-oaymwEmCOADEOgC8quKqQMa8AEB-AH-DoACuAiKAgwIABABGH8gFSg3MA8=&rs=AOn4CLAQRziffbcnd5lDw9UeiEvHKeNt4A" } } } },

@@ -197,7 +197,13 @@ function buildGroupStructureFromManifest(entries: ManifestEntry[]): Group[] {
 
         // If this is a file container, add the file path for loading
         if (entry.type === "file" && i === pathParts.length - 1) {
-          (existingSubgroup as any)._filePath = entry.path;
+          // Support multiple files for the same subgroup
+          if (!(existingSubgroup as any)._filePaths) {
+            (existingSubgroup as any)._filePaths = [];
+          }
+          if (!(existingSubgroup as any)._filePaths.includes(entry.path)) {
+            (existingSubgroup as any)._filePaths.push(entry.path);
+          }
         }
 
         currentSubgroups.push(existingSubgroup);
@@ -211,7 +217,13 @@ function buildGroupStructureFromManifest(entries: ManifestEntry[]): Group[] {
       } else {
         // If it already exists and this is a file, update the file path
         if (entry.type === "file" && i === pathParts.length - 1) {
-          (existingSubgroup as any)._filePath = entry.path;
+          // Support multiple files for the same subgroup
+          if (!(existingSubgroup as any)._filePaths) {
+            (existingSubgroup as any)._filePaths = [];
+          }
+          if (!(existingSubgroup as any)._filePaths.includes(entry.path)) {
+            (existingSubgroup as any)._filePaths.push(entry.path);
+          }
           (existingSubgroup as any)._isFileContainer = true;
         }
         if (entry.name && i === pathParts.length - 1) {
@@ -228,6 +240,7 @@ function buildGroupStructureFromManifest(entries: ManifestEntry[]): Group[] {
     subgroups.forEach((sg) => {
       delete (sg as any)._fullPath;
       delete (sg as any)._isFileContainer;
+      delete (sg as any)._filePaths;
       if (sg.subgroups) {
         cleanupTempProperties(sg.subgroups);
       }
@@ -241,8 +254,8 @@ function buildGroupStructureFromManifest(entries: ManifestEntry[]): Group[] {
 }
 
 async function loadContentForSubgroup(subgroup: Subgroup): Promise<void> {
-  const filePath = (subgroup as any)._filePath;
-  if (!filePath) {
+  const filePaths = (subgroup as any)._filePaths;
+  if (!filePaths || filePaths.length === 0) {
     // No file path means this is an empty folder or structure-only subgroup
     console.log(
       `📂 Subgroup "${subgroup.name}" has no associated file (empty folder or structure-only)`
@@ -251,14 +264,19 @@ async function loadContentForSubgroup(subgroup: Subgroup): Promise<void> {
   }
 
   console.log(
-    `📥 Loading content for subgroup "${subgroup.name}" from ${filePath}`
+    `📥 Loading content for subgroup "${subgroup.name}" from ${filePaths.length} file(s): ${filePaths.join(', ')}`
   );
 
-  const content = await loadJsonFile(filePath);
+  // Load content from all files and merge
+  let allContent: any[] = [];
+  for (const filePath of filePaths) {
+    const content = await loadJsonFile(filePath);
+    allContent = allContent.concat(content);
+  }
 
-  if (content.length === 0) {
-    console.log(`📭 No content loaded from ${filePath}`);
-    delete (subgroup as any)._filePath;
+  if (allContent.length === 0) {
+    console.log(`📭 No content loaded from any files`);
+    delete (subgroup as any)._filePaths;
     return;
   }
 
@@ -266,30 +284,62 @@ async function loadContentForSubgroup(subgroup: Subgroup): Promise<void> {
   subgroup.subgroups = [];
   subgroup.videos = [];
 
-  content.forEach((item) => {
+  // Process all loaded content items
+  allContent.forEach((item) => {
     // Check if this is a top-level group with a name and subgroups
     if (item.name && item.subgroups && Array.isArray(item.subgroups)) {
-      // Use the item's name as the subgroup name, not the filename
-      subgroup.name = item.name;
-      subgroup.viewName = item.viewName || item.name;
+      // For multiple files, we need to merge subgroups with the same name
       if (item.channelId) subgroup.channelId = item.channelId;
 
       // Process each subgroup from the JSON structure
       item.subgroups.forEach((sub: any) => {
-        const newSubgroup: Subgroup = {
-          name: sub.name,
-          viewName: sub.viewName || sub.name,
-          channelId: sub.channelId || "",
-          videos: sub.videos || [],
-          subgroups: sub.subgroups || [],
-        };
+        // Check if a subgroup with this name already exists
+        let existingSubgroup = subgroup.subgroups!.find(sg => sg.name === sub.name);
+        
+        if (existingSubgroup) {
+          // Merge videos into existing subgroup
+          if (sub.videos && Array.isArray(sub.videos)) {
+            existingSubgroup.videos = [...(existingSubgroup.videos || []), ...sub.videos];
+          }
+          
+          // Merge nested subgroups
+          if (sub.subgroups && Array.isArray(sub.subgroups)) {
+            sub.subgroups.forEach((nestedSub: any) => {
+              const existingNested = existingSubgroup!.subgroups!.find(sg => sg.name === nestedSub.name);
+              if (existingNested) {
+                // Merge videos in nested subgroup
+                if (nestedSub.videos) {
+                  existingNested.videos = [...(existingNested.videos || []), ...nestedSub.videos];
+                }
+              } else {
+                // Add new nested subgroup
+                existingSubgroup!.subgroups!.push({
+                  name: nestedSub.name,
+                  viewName: nestedSub.viewName || nestedSub.name,
+                  channelId: nestedSub.channelId || "",
+                  videos: nestedSub.videos || [],
+                  subgroups: nestedSub.subgroups || []
+                });
+              }
+            });
+          }
+        } else {
+          // Create new subgroup
+          const newSubgroup: Subgroup = {
+            name: sub.name,
+            viewName: sub.viewName || sub.name,
+            channelId: sub.channelId || "",
+            videos: sub.videos || [],
+            subgroups: sub.subgroups || [],
+          };
 
-        // Recursively process nested subgroups
-        if (sub.subgroups && Array.isArray(sub.subgroups)) {
-          processNestedSubgroups(newSubgroup, sub.subgroups);
+          // Recursively process nested subgroups
+          if (sub.subgroups && Array.isArray(sub.subgroups)) {
+            processNestedSubgroups(newSubgroup, sub.subgroups);
+          }
+
+          subgroup.subgroups!.push(newSubgroup);
         }
-
-        subgroup.subgroups!.push(newSubgroup);
       });
     } else if (item.videos && Array.isArray(item.videos)) {
       // Direct videos in this item
@@ -319,7 +369,7 @@ async function loadContentForSubgroup(subgroup: Subgroup): Promise<void> {
   });
 
   // Clean up the temporary file path property
-  delete (subgroup as any)._filePath;
+  delete (subgroup as any)._filePaths;
 
   console.log(
     `✅ Loaded content for "${subgroup.viewName || subgroup.name}": ${

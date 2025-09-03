@@ -1,10 +1,10 @@
 [
   {
-    "name": "Melekut Part 1",
+    "name": "Melekut",
     "subgroups": [
       {
-        "name": "Melekut/Melekut Alemi Bölüm 1", 
-        "viewName": "Melekut Alemi Bölüm 1", 
+        "name": "Melekut Alemi",
+        "viewName": "Melekut Alemi",
         "channelId": "CinarMedya",
         "videos": [
           { "id": { "videoId": "-xjZNxsg9HU" }, "snippet": { "title": "Meleklere İmanın Faydaları | Melekut Alemi #1 | M. Fethullah Gülen", "channelId": "CinarMedya", "channelTitle": "Çınar Medya", "duration": "PT4169S", "uploadDate": "2021-05-28T03:00:17-07:00", "thumbnails": { "high": { "url": "https://i.ytimg.com/vi/-xjZNxsg9HU/maxresdefault.jpg?sqp=-oaymwEmCIAKENAF8quKqQMa8AEB-AHUBoAC4AOKAgwIABABGH8gGSg7MA8=&rs=AOn4CLCOXURtgwgkoRy25W8Vrnr2wx-H_g" } } } },
