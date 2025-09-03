@@ -57,10 +57,21 @@ async function loadManifest(): Promise<string[]> {
       return [];
     }
 
-    // Convert to full paths
-    const filePaths = manifest.map(path => 
-      path.startsWith("/") ? path : `/contents/${path}`
-    );
+    // Convert to full paths and include folder entries
+    const filePaths: string[] = [];
+    
+    manifest.forEach(entry => {
+      if (typeof entry === 'string') {
+        if (entry.endsWith('.json')) {
+          // It's a JSON file
+          const fullPath = entry.startsWith("/") ? entry : `/contents/${entry}`;
+          filePaths.push(fullPath);
+        } else {
+          // It's a folder name - add it as a folder entry
+          filePaths.push(`/contents/${entry}/`);
+        }
+      }
+    });
 
     console.log(`✅ Loaded manifest with ${filePaths.length} files`);
     return filePaths;
@@ -142,17 +153,31 @@ export async function loadAllContent(): Promise<Group[]> {
 
     // Group files by their folder path (excluding filename)
     const folderGroups = new Map<string, string[]>();
+    const emptyFolders = new Set<string>();
     
     filePaths.forEach(filePath => {
-      // Extract folder path (everything except the filename)
-      const pathParts = filePath.split('/');
-      const filename = pathParts.pop(); // Remove filename
-      const folderPath = pathParts.join('/');
-      
+      if (filePath.endsWith('/')) {
+        // It's a folder entry
+        const folderPath = filePath.slice(0, -1); // Remove trailing slash
+        emptyFolders.add(folderPath);
+      } else {
+        // It's a file - extract folder path
+        const pathParts = filePath.split('/');
+        const filename = pathParts.pop(); // Remove filename
+        const folderPath = pathParts.join('/');
+        
+        if (!folderGroups.has(folderPath)) {
+          folderGroups.set(folderPath, []);
+        }
+        folderGroups.get(folderPath)!.push(filePath);
+      }
+    });
+
+    // Add empty folders to folderGroups
+    emptyFolders.forEach(folderPath => {
       if (!folderGroups.has(folderPath)) {
         folderGroups.set(folderPath, []);
       }
-      folderGroups.get(folderPath)!.push(filePath);
     });
 
     console.log("📁 Folder groups:", Array.from(folderGroups.entries()));
