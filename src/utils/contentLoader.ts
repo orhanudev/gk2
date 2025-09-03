@@ -202,9 +202,7 @@ export async function loadAllContent(): Promise<Group[]> {
       
       if (files.length === 0) {
         // Empty folder - create empty group
-        const pathParts = folderPath.split('/');
-        const pathParts = folderPath.split('/');
-        if (folderContent.length > 0 && folderPath && pathParts.length >= 3 && pathParts[1] === 'contents') {
+        if (folderPath && folderPath !== '/contents') {
           const folderName = folderPath.split('/').pop() || folderPath;
           const emptyGroup: Group = {
             name: folderName,
