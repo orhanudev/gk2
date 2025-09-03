@@ -125,11 +125,12 @@ function normalizeManifestEntries(entries: ManifestEntry[]): ManifestEntry[] {
   }));
 }
 
-function buildGroupStructureFromManifest(entries: ManifestEntry[]): Group[] {
+function buildGroupStructureFromManifest(entries: ManifestEntry[]): { groups: Group[], fileMap: Map<string, string[]> } {
   console.log("🏗️ Building group structure from manifest entries:", entries);
 
   const groups: Group[] = [];
   const groupMap = new Map<string, Group>();
+  const fileMap = new Map<string, string[]>(); // Maps navigation path to file paths
 
   // Process each manifest entry
   entries.forEach((entry) => {
@@ -192,19 +193,8 @@ function buildGroupStructureFromManifest(entries: ManifestEntry[]): Group[] {
           videos: [],
           subgroups: [],
           _fullPath: currentPath, // Track full path for uniqueness
-          _isFileContainer: entry.type === "file" && i === pathParts.length - 1, // Mark if this will contain JSON content
         };
 
-        // If this is a file container, add the file path for loading
-        if (entry.type === "file" && i === pathParts.length - 1) {
-          // Support multiple files for the same subgroup
-          if (!(existingSubgroup as any)._filePaths) {
-            (existingSubgroup as any)._filePaths = [];
-          }
-          if (!(existingSubgroup as any)._filePaths.includes(entry.path)) {
-            (existingSubgroup as any)._filePaths.push(entry.path);
-          }
-        }
 
         currentSubgroups.push(existingSubgroup);
         console.log(
@@ -215,19 +205,20 @@ function buildGroupStructureFromManifest(entries: ManifestEntry[]): Group[] {
           })`
         );
       } else {
-        // If it already exists and this is a file, update the file path
-        if (entry.type === "file" && i === pathParts.length - 1) {
-          // Support multiple files for the same subgroup
-          if (!(existingSubgroup as any)._filePaths) {
-            (existingSubgroup as any)._filePaths = [];
-          }
-          if (!(existingSubgroup as any)._filePaths.includes(entry.path)) {
-            (existingSubgroup as any)._filePaths.push(entry.path);
-          }
-          (existingSubgroup as any)._isFileContainer = true;
-        }
         if (entry.name && i === pathParts.length - 1) {
           existingSubgroup.viewName = entry.name;
+        }
+      }
+
+      // Track file paths for this navigation path
+      if (entry.type === "file" && i === pathParts.length - 1) {
+        const navPath = currentPath.replace(/\.json$/, ""); // Remove .json for navigation path
+        if (!fileMap.has(navPath)) {
+          fileMap.set(navPath, []);
+        }
+        const files = fileMap.get(navPath)!;
+        if (!files.includes(entry.path)) {
+          files.push(entry.path);
         }
       }
 
@@ -239,8 +230,6 @@ function buildGroupStructureFromManifest(entries: ManifestEntry[]): Group[] {
   const cleanupTempProperties = (subgroups: Subgroup[]) => {
     subgroups.forEach((sg) => {
       delete (sg as any)._fullPath;
-      delete (sg as any)._isFileContainer;
-      delete (sg as any)._filePaths;
       if (sg.subgroups) {
         cleanupTempProperties(sg.subgroups);
       }
@@ -250,11 +239,11 @@ function buildGroupStructureFromManifest(entries: ManifestEntry[]): Group[] {
   groups.forEach((group) => cleanupTempProperties(group.subgroups));
 
   console.log(`✅ Built ${groups.length} groups with hierarchy`);
-  return groups;
+  return { groups, fileMap };
 }
 
-async function loadContentForSubgroup(subgroup: Subgroup): Promise<void> {
-  const filePaths = (subgroup as any)._filePaths;
+async function loadContentForSubgroup(subgroup: Subgroup, fileMap: Map<string, string[]>, currentPath: string): Promise<void> {
+  const filePaths = fileMap.get(currentPath);
   if (!filePaths || filePaths.length === 0) {
     // No file path means this is an empty folder or structure-only subgroup
     console.log(
@@ -276,7 +265,6 @@ async function loadContentForSubgroup(subgroup: Subgroup): Promise<void> {
 
   if (allContent.length === 0) {
     console.log(`📭 No content loaded from any files`);
-    delete (subgroup as any)._filePaths;
     return;
   }
 
@@ -368,8 +356,6 @@ async function loadContentForSubgroup(subgroup: Subgroup): Promise<void> {
     if (item.channelId && !item.subgroups) subgroup.channelId = item.channelId;
   });
 
-  // Clean up the temporary file path property
-  delete (subgroup as any)._filePaths;
 
   console.log(
     `✅ Loaded content for "${subgroup.viewName || subgroup.name}": ${
@@ -400,13 +386,14 @@ function processNestedSubgroups(
   });
 }
 
-async function loadContentRecursively(subgroups: Subgroup[]): Promise<void> {
+async function loadContentRecursively(subgroups: Subgroup[], fileMap: Map<string, string[]>, basePath: string = ""): Promise<void> {
   for (const subgroup of subgroups) {
-    await loadContentForSubgroup(subgroup);
+    const currentPath = basePath ? `${basePath}/${subgroup.name}` : subgroup.name;
+    await loadContentForSubgroup(subgroup, fileMap, currentPath);
 
     // Recursively load content for nested subgroups
     if (subgroup.subgroups && subgroup.subgroups.length > 0) {
-      await loadContentRecursively(subgroup.subgroups);
+      await loadContentRecursively(subgroup.subgroups, fileMap, currentPath);
     }
   }
 }
@@ -430,7 +417,7 @@ export async function loadAllContent(): Promise<Group[]> {
     console.log("📋 Normalized manifest entries:", normalizedEntries);
 
     // Build group structure from manifest entries
-    const groups = buildGroupStructureFromManifest(normalizedEntries);
+    const { groups, fileMap } = buildGroupStructureFromManifest(normalizedEntries);
 
     if (groups.length === 0) {
       console.log("❌ No groups could be built from manifest entries");
@@ -448,7 +435,7 @@ export async function loadAllContent(): Promise<Group[]> {
     // Load actual content from the files
     for (const group of groups) {
       console.log(`📥 Loading content for group: ${group.name}`);
-      await loadContentRecursively(group.subgroups);
+      await loadContentRecursively(group.subgroups, fileMap, group.name);
     }
 
     console.log("✅ Content loading complete. Final structure:");
