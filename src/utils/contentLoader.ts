@@ -282,6 +282,8 @@ async function loadContentForSubgroup(subgroup: Subgroup, fileMap: Map<string, s
       // Process single item
       processContentItem(item, subgroup);
     }
+  }
+  )
 
 
 
