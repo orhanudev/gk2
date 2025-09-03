@@ -75,7 +75,7 @@ async function testFileExists(path: string): Promise<boolean> {
 async function loadManifest(): Promise<ManifestEntry[]> {
   try {
     console.log("📋 Loading content manifest...");
-    const response = await fetch("/content/manifest.json");
+    const response = await fetch("/contents/manifest.json");
 
     if (!response.ok) {
       console.log("❌ No manifest.json found");
@@ -121,7 +121,7 @@ async function loadManifest(): Promise<ManifestEntry[]> {
 function normalizeManifestEntries(entries: ManifestEntry[]): ManifestEntry[] {
   return entries.map((entry) => ({
     ...entry,
-    path: entry.path.startsWith("/") ? entry.path : `/content/${entry.path}`,
+    path: entry.path.startsWith("/") ? entry.path : `/contents/${entry.path}`,
   }));
 }
 
@@ -134,7 +134,7 @@ function buildGroupStructureFromManifest(entries: ManifestEntry[]): Group[] {
   // Process each manifest entry
   entries.forEach((entry) => {
     // Remove /content/ prefix if present for processing
-    const cleanPath = entry.path.replace(/^\/content\//, "");
+    const cleanPath = entry.path.replace(/^\/contents\//, "");
     const pathParts = cleanPath.split("/").filter((part) => part.length > 0);
 
     if (pathParts.length === 0) {
