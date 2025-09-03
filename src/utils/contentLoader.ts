@@ -182,6 +182,7 @@ export async function loadAllContent(): Promise<Group[]> {
 
     // Handle bare folder names from manifest (like "test2")
     filePaths.forEach(filePath => {
+      // Check if it's a bare folder name (no slashes, no .json extension)
       if (!filePath.includes('/') && !filePath.endsWith('.json')) {
         // This is a bare folder name, add it as an empty folder
         const folderPath = `/contents/${filePath}`;
@@ -201,7 +202,9 @@ export async function loadAllContent(): Promise<Group[]> {
       
       if (files.length === 0) {
         // Empty folder - create empty group
-        if (folderPath && folderPath !== '/contents' && folderPath.startsWith('/contents/')) {
+        const pathParts = folderPath.split('/');
+        const pathParts = folderPath.split('/');
+        if (folderContent.length > 0 && folderPath && pathParts.length >= 3 && pathParts[1] === 'contents') {
           const folderName = folderPath.split('/').pop() || folderPath;
           const emptyGroup: Group = {
             name: folderName,
