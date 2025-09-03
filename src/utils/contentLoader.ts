@@ -180,6 +180,17 @@ export async function loadAllContent(): Promise<Group[]> {
       }
     });
 
+    // Handle bare folder names from manifest (like "test2")
+    filePaths.forEach(filePath => {
+      if (!filePath.includes('/') && !filePath.endsWith('.json')) {
+        // This is a bare folder name, add it as an empty folder
+        const folderPath = `/contents/${filePath}`;
+        if (!folderGroups.has(folderPath)) {
+          folderGroups.set(folderPath, []);
+        }
+      }
+    });
+
     console.log("📁 Folder groups:", Array.from(folderGroups.entries()));
 
     // Load and merge content from all files, using folder names in navigation
