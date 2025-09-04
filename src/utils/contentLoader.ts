@@ -43,7 +43,7 @@ async function loadJsonFile(path: string): Promise<any[]> {
 async function loadManifest(): Promise<string[]> {
   try {
     console.log("📋 Loading content manifest...");
-    const response = await fetch("/contents/manifest.json");
+    const response = await fetch("/manifest.json");
 
     if (!response.ok) {
       console.log("❌ No manifest.json found");
@@ -59,16 +59,16 @@ async function loadManifest(): Promise<string[]> {
 
     // Convert to full paths and include folder entries
     const filePaths: string[] = [];
-    
-    manifest.forEach(entry => {
-      if (typeof entry === 'string') {
-        if (entry.endsWith('.json')) {
+
+    manifest.forEach((entry) => {
+      if (typeof entry === "string") {
+        if (entry.endsWith(".json")) {
           // It's a JSON file
-          const fullPath = entry.startsWith("/") ? entry : `/contents/${entry}`;
+          const fullPath = entry.startsWith("/") ? entry : `/${entry}`;
           filePaths.push(fullPath);
         } else {
           // It's a folder name - add it as a folder entry
-          filePaths.push(`/contents/${entry}/`);
+          filePaths.push(`/${entry}/`);
         }
       }
     });
@@ -84,19 +84,26 @@ async function loadManifest(): Promise<string[]> {
 function mergeSubgroups(subgroups: Subgroup[]): Subgroup[] {
   const subgroupMap = new Map<string, Subgroup>();
 
-  subgroups.forEach(subgroup => {
+  subgroups.forEach((subgroup) => {
     const existing = subgroupMap.get(subgroup.name);
     if (existing) {
       // Merge videos (avoid duplicates by videoId)
-      const existingVideoIds = new Set(existing.videos?.map(v => v.id.videoId) || []);
-      const newVideos = subgroup.videos?.filter(v => !existingVideoIds.has(v.id.videoId)) || [];
+      const existingVideoIds = new Set(
+        existing.videos?.map((v) => v.id.videoId) || []
+      );
+      const newVideos =
+        subgroup.videos?.filter((v) => !existingVideoIds.has(v.id.videoId)) ||
+        [];
       existing.videos = [...(existing.videos || []), ...newVideos];
-      
+
       // Merge nested subgroups recursively
       if (subgroup.subgroups && subgroup.subgroups.length > 0) {
-        existing.subgroups = mergeSubgroups([...(existing.subgroups || []), ...subgroup.subgroups]);
+        existing.subgroups = mergeSubgroups([
+          ...(existing.subgroups || []),
+          ...subgroup.subgroups,
+        ]);
       }
-      
+
       // Update metadata if not set
       if (!existing.viewName && subgroup.viewName) {
         existing.viewName = subgroup.viewName;
@@ -110,7 +117,9 @@ function mergeSubgroups(subgroups: Subgroup[]): Subgroup[] {
         viewName: subgroup.viewName || subgroup.name,
         channelId: subgroup.channelId || "",
         videos: [...(subgroup.videos || [])],
-        subgroups: subgroup.subgroups ? mergeSubgroups([...subgroup.subgroups]) : []
+        subgroups: subgroup.subgroups
+          ? mergeSubgroups([...subgroup.subgroups])
+          : [],
       });
     }
   });
@@ -121,15 +130,18 @@ function mergeSubgroups(subgroups: Subgroup[]): Subgroup[] {
 function mergeGroups(groups: Group[]): Group[] {
   const groupMap = new Map<string, Group>();
 
-  groups.forEach(group => {
+  groups.forEach((group) => {
     const existing = groupMap.get(group.name);
     if (existing) {
       // Merge subgroups
-      existing.subgroups = mergeSubgroups([...existing.subgroups, ...group.subgroups]);
+      existing.subgroups = mergeSubgroups([
+        ...existing.subgroups,
+        ...group.subgroups,
+      ]);
     } else {
       groupMap.set(group.name, {
         name: group.name,
-        subgroups: [...group.subgroups]
+        subgroups: [...group.subgroups],
       });
     }
   });
@@ -154,18 +166,18 @@ export async function loadAllContent(): Promise<Group[]> {
     // Group files by their folder path (excluding filename)
     const folderGroups = new Map<string, string[]>();
     const emptyFolders = new Set<string>();
-    
-    filePaths.forEach(filePath => {
-      if (filePath.endsWith('/')) {
+
+    filePaths.forEach((filePath) => {
+      if (filePath.endsWith("/")) {
         // It's a folder entry
         const folderPath = filePath.slice(0, -1); // Remove trailing slash
         emptyFolders.add(folderPath);
       } else {
         // It's a file - extract folder path
-        const pathParts = filePath.split('/');
+        const pathParts = filePath.split("/");
         const filename = pathParts.pop(); // Remove filename
-        const folderPath = pathParts.join('/');
-        
+        const folderPath = pathParts.join("/");
+
         if (!folderGroups.has(folderPath)) {
           folderGroups.set(folderPath, []);
         }
@@ -174,18 +186,18 @@ export async function loadAllContent(): Promise<Group[]> {
     });
 
     // Add empty folders to folderGroups
-    emptyFolders.forEach(folderPath => {
+    emptyFolders.forEach((folderPath) => {
       if (!folderGroups.has(folderPath)) {
         folderGroups.set(folderPath, []);
       }
     });
 
     // Handle bare folder names from manifest (like "test2")
-    filePaths.forEach(filePath => {
+    filePaths.forEach((filePath) => {
       // Check if it's a bare folder name (no slashes, no .json extension)
-      if (!filePath.includes('/') && !filePath.endsWith('.json')) {
+      if (!filePath.includes("/") && !filePath.endsWith(".json")) {
         // This is a bare folder name, add it as an empty folder
-        const folderPath = `/contents/${filePath}`;
+        const folderPath = `/${filePath}`;
         if (!folderGroups.has(folderPath)) {
           folderGroups.set(folderPath, []);
         }
@@ -196,24 +208,26 @@ export async function loadAllContent(): Promise<Group[]> {
 
     // Load and merge content from all files, using folder names in navigation
     const allGroups: Group[] = [];
-    
+
     for (const [folderPath, files] of folderGroups.entries()) {
-      console.log(`📂 Processing folder: ${folderPath} with ${files.length} files`);
-      
+      console.log(
+        `📂 Processing folder: ${folderPath} with ${files.length} files`
+      );
+
       if (files.length === 0) {
         // Empty folder - create empty group
-        if (folderPath && folderPath !== '/contents') {
-          const folderName = folderPath.split('/').pop() || folderPath;
+        if (folderPath && folderPath !== "/content") {
+          const folderName = folderPath.split("/").pop() || folderPath;
           const emptyGroup: Group = {
             name: folderName,
-            subgroups: []
+            subgroups: [],
           };
           allGroups.push(emptyGroup);
           console.log(`📁 Created empty folder group: ${folderName}`);
         }
         continue;
       }
-      
+
       // Load all files in this folder
       const folderContent: Group[] = [];
       for (const filePath of files) {
@@ -223,28 +237,18 @@ export async function loadAllContent(): Promise<Group[]> {
           folderContent.push(...content);
         }
       }
-      
-      // If we have content and a folder path, use folder name as group name
+
+      // Replace this section in loadAllContent:
+
       if (folderContent.length > 0 && folderPath) {
-        const folderName = folderPath.split('/').pop() || folderPath;
-        
-        // Merge all content from this folder under the folder name
+        const folderName = folderPath.split("/").pop() || folderPath;
+
+        // Merge all content from this folder
         const mergedFolderGroups = mergeGroups(folderContent);
-        
-        // Create a new group with the folder name
-        const folderGroup: Group = {
-          name: folderName,
-          subgroups: []
-        };
-        
-        // Merge all subgroups from the folder content
-        mergedFolderGroups.forEach(group => {
-          folderGroup.subgroups.push(...group.subgroups);
-        });
-        
-        allGroups.push(folderGroup);
+
+        // Instead of creating a new folder group, just push merged groups directly
+        allGroups.push(...mergedFolderGroups);
       } else {
-        // No folder path, use original group names
         const mergedFolderGroups = mergeGroups(folderContent);
         allGroups.push(...mergedFolderGroups);
       }
@@ -265,7 +269,9 @@ export async function loadAllContent(): Promise<Group[]> {
         const videosCount = sg.videos?.length || 0;
         const subgroupsCount = sg.subgroups?.length || 0;
         console.log(
-          `${indent}${sg.viewName || sg.name} (${videosCount} videos, ${subgroupsCount} subgroups)`
+          `${indent}${
+            sg.viewName || sg.name
+          } (${videosCount} videos, ${subgroupsCount} subgroups)`
         );
         sg.subgroups?.forEach((sub) => logSubgroup(sub, indent + "  "));
       };
